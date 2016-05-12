@@ -8,18 +8,131 @@ output:
 
 ## Loading and preprocessing the data
 
+The data is unziped and loaded with the following script.  The zip file is assumed to be in your working directory.
 
+```{r preprocess}
+require(dplyr, quietly = T, warn.conflicts = F)
+require(ggplot2, quietly = T)
+require(xtable, quietly = T, warn.conflicts = F)
+
+unzip("activity.zip")
+data <- read.csv("activity.csv", stringsAsFactors = F)
+```
 
 ## What is mean total number of steps taken per day?
+```{r dailysteps}
+stepData <- group_by(data, date)
+dailyTotal <- summarize(stepData, n = sum(steps, na.rm = T))
+names(dailyTotal) <- c("Date","Steps")
+dailyMean <- mean(dailyTotal$Steps)
+dailyMedian <- median(dailyTotal$Steps)
+```
 
+Total Steps per Day:
+
+```{r results="asis"}
+print(xtable(dailyTotal), type="html")
+```
+
+Histogram of Total Steps per Day
+
+```{r}
+p <- ggplot(data=dailyTotal, aes(dailyTotal$Steps)) + 
+  geom_histogram(col="red", 
+                 fill="green", 
+                 bins = 30,
+                 alpha = .2) + 
+  labs(title="Total Steps per Day") +
+  labs(x="Total Steps", y="Count")
+p
+```
+
+Mean Steps per Day : `r dailyMean`
+
+Median Steps per Day: `r dailyMedian`
 
 
 ## What is the average daily activity pattern?
 
+```{r daily}
+dailyData <- group_by(data, interval)
+dailyIntervalTotal <- summarize(dailyData, n = mean(steps, na.rm = T))
+names(dailyIntervalTotal) <- c("Interval","Steps")
+maxSteps <- which.max(dailyIntervalTotal$Steps)
+maxInterval <- dailyIntervalTotal$Interval[maxSteps]
+```
 
+Average steps taken per time interval:
+
+```{r}
+p <- ggplot(data=dailyIntervalTotal, aes(x=Interval, y=Steps)) + 
+  geom_line() + 
+  labs(title="Avg Daily Steps") +
+  labs(x="Time Interval", y="Avg Steps")
+p
+```
+
+Maximum time interval for daily average steps: `r maxInterval`
 
 ## Imputing missing values
 
+```{r imputing}
+missingCount <- sum(is.na(data$steps))
 
+imputeData <- data
+
+for(i in which(is.na(imputeData$steps))) {
+     imputeData$steps[i] <- dailyIntervalTotal$Steps[dailyIntervalTotal$Interval == imputeData$interval[i]]
+}
+
+imputeStepData <- group_by(imputeData, date)
+imputeDailyTotal <- summarize(imputeStepData, n = sum(steps, na.rm = T))
+names(imputeDailyTotal) <- c("Date","Steps")
+imputeDailyMean <- mean(imputeDailyTotal$Steps)
+imputeDailyMedian <- median(imputeDailyTotal$Steps)
+options(scipen = 3)
+
+```
+
+Total count of missing values: `r missingCount`
+
+Missing Values imputed using Interval means.
+
+Imputed Histogram of Total Steps per Day
+
+```{r}
+p <- ggplot(data=imputeDailyTotal, aes(imputeDailyTotal$Steps)) + 
+  geom_histogram(col="red", 
+                 fill="green", 
+                 bins = 30,
+                 alpha = .2) + 
+  labs(title="Total Steps per Day") +
+  labs(x="Total Steps", y="Count")
+p
+```
+
+Imputed Mean Steps per Day : `r imputeDailyMean`
+
+Imputed Median Steps per Day: `r imputeDailyMedian`
+
+The imputed values seems to skew things towards the original median, causing a large spike there.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r weekday}
+data <- mutate(data,
+     weekday = ifelse(weekdays(as.Date(date,"%Y-%m-%d")) %in% c("Saturday","Sunday"),"weekend","weekday"))
+
+weekday <- group_by(data, interval, weekday)
+weekday <- summarize(weekday, n = mean(steps, na.rm = T))
+names(weekday) <- c("Interval", "Weekday", "Steps")
+
+
+p <- ggplot(data=weekday, aes(x=Interval, y=Steps)) + 
+  geom_line() + 
+  labs(title="Weekday Avg Daily Steps") +
+  labs(x="Time Interval", y="Avg Steps") +
+  facet_wrap(~Weekday, nrow=2)
+p
+
+```
